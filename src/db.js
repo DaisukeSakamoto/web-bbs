@@ -6,15 +6,28 @@ export function openDb(path=':memory:') {
  CREATE TABLE IF NOT EXISTS posts(id INTEGER PRIMARY KEY AUTOINCREMENT, parent INTEGER REFERENCES posts(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL, owner_hash TEXT NOT NULL, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
  if(!db.prepare('PRAGMA table_info(posts)').all().some(c=>c.name==='category')) db.exec("ALTER TABLE posts ADD COLUMN category TEXT NOT NULL DEFAULT 'general'");
  db.exec('CREATE INDEX IF NOT EXISTS posts_category ON posts(parent,category,id)');
+ db.exec(`CREATE TABLE IF NOT EXISTS reports(id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+ CREATE TABLE IF NOT EXISTS moderation(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+ INSERT OR IGNORE INTO moderation VALUES('paused','0');
+ CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, target TEXT NOT NULL, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+ CREATE INDEX IF NOT EXISTS reports_status ON reports(status,id);`);
  const categories=['general','technology','ai','iot'];
  const clean = (v,max) => { if(typeof v!=='string'||!v.trim()||v.trim().length>max) throw Object.assign(new Error('入力内容を確認してください'),{status:400}); return v.trim(); };
  const idCheck = id => {if(!Number.isSafeInteger(id)||id<1) throw Object.assign(new Error('不正なID'),{status:400});};
  const get = id => {idCheck(id); return db.prepare('SELECT id,parent,title,body,created,category FROM posts WHERE id=?').get(id);};
  const filter=(q,category)=>{if(category&&!categories.includes(category))throw Object.assign(new Error('不正なカテゴリ'),{status:400});return [q,q,category,category];};
- return {close:()=>db.close(), get,
+ const paused=()=>db.prepare("SELECT value FROM moderation WHERE key='paused'").get().value==='1';
+ const audit=(action,target)=>db.prepare('INSERT INTO audit(action,target) VALUES(?,?)').run(action,String(target));
+ const transaction=fn=>{db.exec('BEGIN IMMEDIATE');try{const r=fn();db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}};
+ return {paused, close:()=>db.close(), get,
+ report(id,reason){if(!get(id))throw Object.assign(new Error('投稿がありません'),{status:404});reason=clean(reason,500);return {id:Number(db.prepare('INSERT INTO reports(post_id,reason) VALUES(?,?)').run(id,reason).lastInsertRowid)};},
+ dashboard(){return {paused:paused(),counts:{posts:db.prepare('SELECT count(*) AS n FROM posts').get().n,openReports:db.prepare("SELECT count(*) AS n FROM reports WHERE status='open'").get().n},posts:db.prepare('SELECT id,parent,title,body,created,category FROM posts ORDER BY id DESC LIMIT 100').all(),reports:db.prepare("SELECT r.id,r.post_id,r.reason,r.status,r.created,p.title,p.body FROM reports r JOIN posts p ON p.id=r.post_id ORDER BY (r.status='open') DESC,r.id DESC LIMIT 100").all(),audit:db.prepare('SELECT action,target,created FROM audit ORDER BY id DESC LIMIT 100').all()};},
+ adminRemove(id){idCheck(id);return transaction(()=>{const ok=db.prepare('DELETE FROM posts WHERE id=?').run(id).changes===1;if(ok)audit('delete',id);return ok;});},
+ resolveReport(id){idCheck(id);return transaction(()=>{const ok=db.prepare("UPDATE reports SET status='resolved' WHERE id=? AND status='open'").run(id).changes===1;if(ok)audit('resolve',id);return ok;});},
+ setPaused(value){if(typeof value!=='boolean')throw Object.assign(new Error('boolean required'),{status:400});transaction(()=>{db.prepare("UPDATE moderation SET value=? WHERE key='paused'").run(value?'1':'0');audit('pause',value);});},
  page(q='',category='',page=1){if(!Number.isSafeInteger(page)||page<1||page>1000000)throw Object.assign(new Error('不正なページ'),{status:400});const args=filter(q,category);const where="p.parent IS NULL AND (instr(p.title,?)>0 OR instr(p.body,?)>0) AND (?='' OR p.category=?)";const total=db.prepare('SELECT count(*) AS n FROM posts p WHERE '+where).get(...args).n;const items=db.prepare('SELECT p.id,p.title,p.body,p.created,p.category,(SELECT count(*) FROM posts r WHERE r.parent=p.id) AS replies FROM posts p WHERE '+where+' ORDER BY p.id DESC LIMIT 20 OFFSET ?').all(...args,(page-1)*20);return {items,total,page,pageSize:20};},
  list(q=''){return db.prepare(`SELECT p.id,p.title,p.body,p.created,(SELECT count(*) FROM posts r WHERE r.parent=p.id) AS replies FROM posts p WHERE p.parent IS NULL AND (instr(p.title,?)>0 OR instr(p.body,?)>0) ORDER BY p.id DESC LIMIT 100`).all(q,q);},
- replies(id){idCheck(id);return db.prepare('SELECT id,parent,title,body,created FROM posts WHERE parent=? ORDER BY id LIMIT 500').all(id);},
- create({title,body,parent=null,category='general'}){body=clean(body,4000); if(parent!==null){const p=get(parent);if(!p||p.parent!==null)throw Object.assign(new Error('スレッドがありません'),{status:404}); title='';category=p.category;}else title=clean(title,120);if(!categories.includes(category))throw Object.assign(new Error('不正なカテゴリ'),{status:400}); const token=randomBytes(32).toString('hex');const result=db.prepare('INSERT INTO posts(parent,title,body,owner_hash,category) VALUES(?,?,?,?,?)').run(parent,title,body,hash(token),category);return {id:Number(result.lastInsertRowid),deleteToken:token};},
+ replies(id){idCheck(id);return db.prepare('SELECT id,parent,title,body,created,category FROM posts WHERE parent=? ORDER BY id LIMIT 500').all(id);},
+ create({title,body,parent=null,category='general'}){if(paused())throw Object.assign(new Error('投稿は一時停止中です'),{status:503});body=clean(body,4000); if(parent!==null){const p=get(parent);if(!p||p.parent!==null)throw Object.assign(new Error('スレッドがありません'),{status:404}); title='';category=p.category;}else title=clean(title,120);if(!categories.includes(category))throw Object.assign(new Error('不正なカテゴリ'),{status:400}); const token=randomBytes(32).toString('hex');const result=db.prepare('INSERT INTO posts(parent,title,body,owner_hash,category) VALUES(?,?,?,?,?)').run(parent,title,body,hash(token),category);return {id:Number(result.lastInsertRowid),deleteToken:token};},
  remove(id,token){idCheck(id);if(typeof token!=='string'||! /^[a-f0-9]{64}$/.test(token))return false;return db.prepare('DELETE FROM posts WHERE id=? AND owner_hash=?').run(id,hash(token)).changes===1;}};
 }
