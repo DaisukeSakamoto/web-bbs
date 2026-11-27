@@ -1,6 +1,7 @@
+import {installAdmin} from './admin.js';
 import express from 'express';
 import {fileURLToPath} from 'node:url';
-export function createApp(db,{origin='http://localhost:8000'}={}){
+export function createApp(db,{origin='http://localhost:8000',adminPassword=''}={}){
  const app=express();app.disable('x-powered-by');
  app.use((req,res,next)=>{res.set({'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'});next();});
  // No proxy trust by default. Behind a reverse proxy, rate limits apply to the proxy as a whole.
@@ -12,6 +13,8 @@ export function createApp(db,{origin='http://localhost:8000'}={}){
  app.post('/api/threads',(req,res)=>res.status(201).json(db.create({title:req.body?.title,body:req.body?.body,category:req.body?.category})));
  app.post('/api/threads/:id/comments',(req,res)=>res.status(201).json(db.create({body:req.body?.body,parent:Number(req.params.id)})));
  app.delete('/api/posts/:id',(req,res)=>{if(!db.remove(Number(req.params.id),req.body?.deleteToken))return res.status(403).json({error:'削除キーが無効です'});res.sendStatus(204);});
+ app.post('/api/posts/:id/report',(req,res)=>res.status(201).json(db.report(Number(req.params.id),req.body?.reason)));
+ installAdmin(app,db,{origin,adminPassword});
  app.use('/api',(req,res)=>res.status(404).json({error:'Not found'}));
  app.use(express.static(fileURLToPath(new URL('../public',import.meta.url))));
  app.use((err,req,res,next)=>{const status=Number.isInteger(err.status)&&err.status>=400&&err.status<500?err.status:500;res.status(status).json({error:status===500?'Server error':err.message});});return app;
