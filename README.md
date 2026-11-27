@@ -1,4 +1,4 @@
-# web-bbs v0.5.0
+# web-bbs v0.6.0
 Node.js 22.16以上 + Express 5 + SQLite（node:sqlite）による匿名掲示板。日本語UI、投稿・返信・検索・削除キー。アカウント不要。
 
 ## ローカル起動
@@ -59,3 +59,6 @@ HTTPS、管理者による削除・通報、利用規約、プライバシーポ
 
 ## v0.5.0 運用
 Docker Composeで日次バックアップ（7世代）、ヘルスチェック、JSONログ・ローテーション、ディスク監視。HTTPSは compose.https.yaml を追加指定し、証明書を certs/ に配置する。詳細は [運用手順](docs/operations.md)。既存DBを維持するため down -v を使わない。
+
+## v0.6.0 投稿要約・自動分類
+APIキー不要のローカル本文抜粋・キーワード分類、任意のOpenAIによる生成要約・分類。新規スレッドのみ。手動カテゴリ選択を尊重。Renderではmainをデプロイし、必要な場合だけ OPENAI_API_KEY を環境変数で設定。詳細は docs/ai.md。無料Renderのデータは永続化されないため更新前に必要な投稿を退避すること。

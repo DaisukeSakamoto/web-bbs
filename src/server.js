@@ -1,3 +1,4 @@
+import {createAnalyzer} from './ai.js';
 import {mkdirSync} from 'node:fs';
 import {dirname} from 'node:path';
 import {openDb} from './db.js';
@@ -7,7 +8,9 @@ const port=Number(process.env.PORT||8000),path=process.env.DB_PATH||'data/bbs.sq
 if(!Number.isSafeInteger(minFree)||minFree<0)throw Error('Invalid MIN_FREE_BYTES');
 mkdirSync(dirname(path),{recursive:true});const db=openDb(path);
 const check=()=>diskStatus(dirname(path),minFree);
-const server=createApp(db,{adminPassword:process.env.ADMIN_PASSWORD||'',origin:process.env.PUBLIC_ORIGIN||`http://localhost:${port}`,trustProxy:process.env.TRUST_PROXY==='1',health:()=>check().ok,logger:log}).listen(port,'0.0.0.0',()=>log('listening',{port}));
+const apiKey=process.env.OPENAI_API_KEY||'',maxDaily=Number(process.env.AI_MAX_DAILY||30);
+if(!Number.isSafeInteger(maxDaily)||maxDaily<0||maxDaily>1000)throw Error('Invalid AI_MAX_DAILY');
+const server=createApp(db,{analyze:createAnalyzer({apiKey,model:process.env.OPENAI_MODEL||'gpt-4.1-mini',maxDaily}),externalAI:!!apiKey&&maxDaily>0,adminPassword:process.env.ADMIN_PASSWORD||'',origin:process.env.PUBLIC_ORIGIN||`http://localhost:${port}`,trustProxy:process.env.TRUST_PROXY==='1',health:()=>check().ok,logger:log}).listen(port,'0.0.0.0',()=>log('listening',{port}));
 const monitor=()=>{try{const d=check();log(d.ok?'disk_ok':'disk_low',{freeBytes:d.free,totalBytes:d.total});}catch{log('disk_check_failed');}};
 monitor();const timer=setInterval(monitor,60000);timer.unref();
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>{clearInterval(timer);server.close(()=>{db.close();process.exit(0);});});
