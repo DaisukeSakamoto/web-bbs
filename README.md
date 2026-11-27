@@ -1,4 +1,4 @@
-# web-bbs v0.1.0
+# web-bbs v0.2.0
 Node.js 22.16以上 + Express 5 + SQLite（node:sqlite）による匿名掲示板。日本語UI、投稿・返信・検索・削除キー。アカウント不要。
 
 ## ローカル起動
@@ -21,11 +21,12 @@ docker compose down
 | method | path | JSON / query |
 |---|---|---|
 | GET | /api/threads | q（任意） |
+| GET | /api/thread-pages | q, category, page（任意） |
 | GET | /api/threads/:id | なし |
-| POST | /api/threads | title, body |
+| POST | /api/threads | title, body, category（任意） |
 | POST | /api/threads/:id/comments | body |
 | DELETE | /api/posts/:id | deleteToken |
-変更系は Content-Type: application/json と PUBLIC_ORIGIN に一致する Origin が必要。投稿成功時のみ削除キーを返す。スレッドを削除すると返信も消える。検索は部分一致、最新100件、返信は先頭500件まで。ページング未実装。
+変更系は Content-Type: application/json と PUBLIC_ORIGIN に一致する Origin が必要。投稿成功時のみ削除キーを返す。スレッドを削除すると返信も消える。検索は部分一致、最新100件、返信は先頭500件まで。旧一覧APIは互換性のため維持。新一覧APIは20件ずつ表示。
 
 ## 設定
 PORT=8000、DB_PATH=data/bbs.sqlite、PUBLIC_ORIGIN=http://localhost:8000。DockerではDB_PATHが /app/data/bbs.sqlite。
@@ -46,3 +47,6 @@ Node v22.16.0でDBテスト2件合格。npm registryへのDNS接続不可によ�
 
 ## 公開運用前の課題
 HTTPS、管理者による削除・通報、利用規約、プライバシーポリシー、バックアップと復元試験、監視、プロキシ設定とレート制限、依存関係の監査を追加する。現状は開発用MVP。公開リポジトリとインターネットへのサービス公開は別。ライセンスは未指定のため付与していない。
+
+## v0.2.0
+カテゴリ general / technology / ai / iot、検索とカテゴリの併用、20件単位のページング。既存DBは起動時に category 列を追加し既存投稿を general とする。更新前にDBをバックアップすること。新APIは items, total, page, pageSize を返す。旧APIは維持。追加テストはCIで確認する。
