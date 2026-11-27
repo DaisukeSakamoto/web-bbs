@@ -17,5 +17,5 @@ export function createApp(db,{origin='http://localhost:8000',adminPassword=''}={
  installAdmin(app,db,{origin,adminPassword});
  app.use('/api',(req,res)=>res.status(404).json({error:'Not found'}));
  app.use(express.static(fileURLToPath(new URL('../public',import.meta.url))));
- app.use((err,req,res,next)=>{const status=Number.isInteger(err.status)&&err.status>=400&&err.status<500?err.status:500;res.status(status).json({error:status===500?'Server error':err.message});});return app;
+ app.use((err,req,res,next)=>{const status=Number.isInteger(err.status)&&err.status>=400&&(err.status<500||err.status===503)?err.status:500;res.status(status).json({error:status===500?'Server error':err.message});});return app;
 }
