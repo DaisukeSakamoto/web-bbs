@@ -1,0 +1,12 @@
+services:
+  bbs:
+    build: .
+    ports:
+      - '127.0.0.1:8000:8000'
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8000}
+    volumes:
+      - bbs-data:/app/data
+    restart: unless-stopped
+volumes:
+  bbs-data:
