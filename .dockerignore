@@ -3,3 +3,6 @@ data
 .git
 .env
 *.sqlite*
+backups
+certs
+*.pem

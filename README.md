@@ -1,9 +1,9 @@
-# web-bbs v0.4.0
+# web-bbs v0.5.0
 Node.js 22.16以上 + Express 5 + SQLite（node:sqlite）による匿名掲示板。日本語UI、投稿・返信・検索・削除キー。アカウント不要。
 
 ## ローカル起動
 ```sh
-npm install
+npm ci
 npm test
 npm start
 ```
@@ -43,7 +43,7 @@ git push -u origin main
 GitHub CLI が認証済みなら代わりに `gh repo create web-bbs --public --source=. --remote=origin --push` （commitまで実行した後、remote追加前）。認証情報はGit Credential Managerまたはgh auth loginで管理し、ソースに書かない。
 
 ## 検証状況
-Node v22.16.0でDBテスト2件合格。npm registryへのDNS接続不可によりExpressの導入・HTTPテスト未実施。Dockerも実行環境なし。依存ロックファイルは未生成、npm install後に生成された package-lock.json をコミットし、CIとDockerを npm ci に変更すること。
+GitHub Actionsで npm ci と npm test を実行。Docker・HTTPSの検証結果はActionsを参照。
 
 ## 公開運用前の課題
 HTTPS、管理者による削除・通報、利用規約、プライバシーポリシー、バックアップと復元試験、監視、プロキシ設定とレート制限、依存関係の監査を追加する。現状は開発用MVP。公開リポジトリとインターネットへのサービス公開は別。ライセンスは未指定のため付与していない。
@@ -56,3 +56,6 @@ HTTPS、管理者による削除・通報、利用規約、プライバシーポ
 
 ## v0.4.0 添付ファイル
 投稿・返信にPNG（8bit RGB/RGBA・非インターレース）またはUTF-8 TXTを1件、5 MiBまで添付できます。PNGはサーバー側で再エンコードし最大320pxのサムネイルを生成します。添付はSQLite BLOBで保存し、投稿削除で連鎖削除されます。管理者は添付だけを削除可能。総添付容量100 MiB（論理サイズ）。更新前にDBバックアップを取得してください。JPEG/GIF/PDF/Officeは未対応。詳細は docs/attachments.md。
+
+## v0.5.0 運用
+Docker Composeで日次バックアップ（7世代）、ヘルスチェック、JSONログ・ローテーション、ディスク監視。HTTPSは compose.https.yaml を追加指定し、証明書を certs/ に配置する。詳細は [運用手順](docs/operations.md)。既存DBを維持するため down -v を使わない。
