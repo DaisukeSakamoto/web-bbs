@@ -7,3 +7,6 @@
 - PUT /api/admin/settings: paused (boolean)。新規投稿と返信のみ全体停止、閲覧・通報・削除は可能。
 - POST /api/admin/logout: セッション無効化。
 管理者操作の削除、対応、停止変更をSQLiteに記録。削除した投稿本文・通報内容は監査ログに保存しない。個別IPのBAN、複数管理者、監査ログの耐改ざん、通報重複排除は未実装。単一プロセス想定。最新100件以外はID指定で削除可能。公開前に運用規約とバックアップを整える。
+
+## v0.4.0
+DELETE /api/admin/attachments/:id は添付だけを削除し、監査ログに delete_attachment を記録する。最新100件を管理画面で表示。

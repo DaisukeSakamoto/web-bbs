@@ -13,6 +13,7 @@ export function installAdmin(app,db,{adminPassword='',origin}){
  app.use('/api/admin',auth);
  app.post('/api/admin/logout',(req,res)=>{sessions.delete(key(token(req)));res.clearCookie(cookie,opts);res.sendStatus(204);});
  app.get('/api/admin/dashboard',(req,res)=>res.json(db.dashboard()));
+ app.delete('/api/admin/attachments/:id',(req,res)=>{if(!db.adminRemoveAttachment(Number(req.params.id)))return res.sendStatus(404);res.sendStatus(204);});
  app.delete('/api/admin/posts/:id',(req,res)=>{if(!db.adminRemove(Number(req.params.id)))return res.sendStatus(404);res.sendStatus(204);});
  app.post('/api/admin/reports/:id/resolve',(req,res)=>{if(!db.resolveReport(Number(req.params.id)))return res.sendStatus(404);res.sendStatus(204);});
  app.put('/api/admin/settings',(req,res)=>{db.setPaused(req.body?.paused);res.json({paused:db.paused()});});
