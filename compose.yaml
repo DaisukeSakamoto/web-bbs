@@ -6,8 +6,37 @@ services:
     environment:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8000}
+      MIN_FREE_BYTES: ${MIN_FREE_BYTES:-268435456}
     volumes:
       - bbs-data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  backup:
+    build: .
+    command: ["node", "src/maintenance.js", "schedule"]
+    environment:
+      BACKUP_DIR: /app/backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETAIN: ${BACKUP_RETAIN:-7}
+      MIN_FREE_BYTES: ${MIN_FREE_BYTES:-268435456}
+    volumes:
+      - bbs-data:/app/data
+      - bbs-backups:/app/backups
+    depends_on:
+      bbs:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logs
 volumes:
   bbs-data:
+  bbs-backups:

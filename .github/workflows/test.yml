@@ -12,3 +12,12 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npm test
+      - run: docker compose config --quiet
+      - run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout certs/privkey.pem -out certs/fullchain.pem -days 1 -subj /CN=localhost
+          PUBLIC_ORIGIN=https://localhost docker compose -f compose.yaml -f compose.https.yaml config --quiet
+          PUBLIC_ORIGIN=https://localhost docker compose -f compose.yaml -f compose.https.yaml up --build -d --wait --wait-timeout 120
+          curl --fail --silent --insecure https://localhost/healthz
+      - if: always()
+        run: PUBLIC_ORIGIN=https://localhost docker compose -f compose.yaml -f compose.https.yaml down
